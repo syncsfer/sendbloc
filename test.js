@@ -5,7 +5,7 @@
 const BASE = process.env.API_URL || "http://localhost:3001/api/v1";
 let accessToken = null;
 let refreshToken = null;
-let testWallet = "0xdemo000000000000000000000000000000000001";
+let testWallet = "0xde00000000000000000000000000000000000001";
 let passed = 0;
 let failed = 0;
 async function request(method, path, body = null, auth = true) {

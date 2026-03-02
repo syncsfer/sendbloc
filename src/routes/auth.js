@@ -1,139 +1,158 @@
-const { Router } = require('express');
-const crypto = require('crypto');
-const {
-  generateChallenge,
-  verifySignature,
-  signAccessToken,
-  signRefreshToken,
-  hashToken,
-  verifyToken,
-} = require('../utils/crypto');
-const { Users, Sessions } = require('../models');
-const { authLimiter, authenticate, requireBody } = require('../middleware');
+// ═══════════════════════════════════════════
+// SENDBLOC — Auth Routes
+// ═══════════════════════════════════════════
+
+const { Router } = require("express");
+const { Users, Sessions } = require("../models");
+const { generateChallenge, verifyChallenge, issueTokens, generateId, hashToken, verifyToken } = require("../utils/crypto");
+const { asyncHandler, authLimiter, authenticate, requireBody } = require("../middleware");
 
 const router = Router();
 
-// In-memory challenge store (short-lived, keyed by wallet)
+// In-memory challenge store (use Redis in production)
 const challenges = new Map();
 
-// POST /auth/challenge — request a sign challenge
-router.post('/challenge', authLimiter, requireBody('wallet'), (req, res) => {
+/**
+ * POST /auth/challenge
+ * Request a sign challenge for wallet authentication
+ */
+router.post("/challenge", authLimiter, requireBody("wallet"), asyncHandler(async (req, res) => {
   const { wallet } = req.body;
-  const challenge = generateChallenge();
-  challenges.set(wallet.toLowerCase(), { ...challenge, expiresAt: Date.now() + 5 * 60_000 });
-  res.json({ message: challenge.message, nonce: challenge.nonce });
-});
-
-// POST /auth/verify — verify wallet signature, issue tokens
-router.post('/verify', authLimiter, requireBody('wallet', 'signature', 'message'), (req, res) => {
-  const { wallet, signature, message, publicKey } = req.body;
-  const walletLower = wallet.toLowerCase();
-
-  // Validate challenge exists and hasn't expired
-  const challenge = challenges.get(walletLower);
-  if (!challenge || challenge.message !== message) {
-    return res.status(400).json({ error: 'Invalid or expired challenge' });
-  }
-  if (Date.now() > challenge.expiresAt) {
-    challenges.delete(walletLower);
-    return res.status(400).json({ error: 'Challenge expired' });
+  if (!/^0x[0-9a-fA-F]{40}$/.test(wallet)) {
+    return res.status(400).json({ error: "Invalid wallet address" });
   }
 
-  // Verify EIP-191 signature
-  let valid;
-  try {
-    valid = verifySignature(message, signature, wallet);
-  } catch {
-    return res.status(400).json({ error: 'Signature verification failed' });
-  }
-  if (!valid) {
-    return res.status(401).json({ error: 'Invalid signature' });
+  const challenge = generateChallenge(wallet);
+  challenges.set(wallet.toLowerCase(), { ...challenge, createdAt: Date.now() });
+
+  // Cleanup old challenges (>10 min)
+  for (const [key, val] of challenges) {
+    if (Date.now() - val.createdAt > 10 * 60 * 1000) challenges.delete(key);
   }
 
-  challenges.delete(walletLower);
+  res.json({
+    message: challenge.message,
+    nonce: challenge.nonce,
+    expiresIn: 300, // 5 minutes
+  });
+}));
 
-  // Find or create user (wallet = id)
-  let user = Users.findById(walletLower);
+/**
+ * POST /auth/verify
+ * Verify signed challenge and issue JWT tokens
+ */
+router.post("/verify", authLimiter, requireBody("wallet", "signature"), asyncHandler(async (req, res) => {
+  const { wallet, signature, publicKey, alias } = req.body;
+  const normalizedWallet = wallet.toLowerCase();
+
+  // Get stored challenge
+  const challenge = challenges.get(normalizedWallet);
+  if (!challenge) {
+    return res.status(400).json({ error: "No pending challenge — request one first" });
+  }
+
+  // Verify signature
+  const result = verifyChallenge(challenge.message, signature, wallet);
+  if (!result.valid) {
+    return res.status(401).json({ error: result.error });
+  }
+
+  challenges.delete(normalizedWallet);
+
+  // Upsert user
+  let user = Users.findById(normalizedWallet);
   if (!user) {
     if (!publicKey) {
-      return res.status(400).json({ error: 'publicKey required for new accounts' });
+      return res.status(400).json({ error: "publicKey required for new accounts" });
     }
-    Users.create(walletLower, publicKey, null);
-    user = Users.findById(walletLower);
+    Users.create(normalizedWallet, publicKey, alias || null);
+    user = Users.findById(normalizedWallet);
   }
 
-  // Issue tokens
-  const accessToken = signAccessToken({ sub: user.id });
-  const refreshToken = signRefreshToken({ sub: user.id });
+  Users.updateOnlineStatus(normalizedWallet, true);
 
-  // Store hashed tokens
-  const decoded = verifyToken(refreshToken);
-  const expiresAt = new Date(decoded.exp * 1000).toISOString();
+  // Issue tokens
+  const tokens = issueTokens(normalizedWallet);
+  const sessionId = generateId("sess");
 
   Sessions.create(
-    crypto.randomUUID(),
-    user.id,
-    hashToken(accessToken),
-    hashToken(refreshToken),
-    expiresAt,
-    req.get('user-agent') || '',
-    req.ip
+    sessionId, normalizedWallet,
+    tokens.accessTokenHash, tokens.refreshTokenHash,
+    tokens.expiresAt,
+    req.headers["user-agent"], req.ip
   );
 
   res.json({
-    accessToken,
-    refreshToken,
-    user: { id: user.id, wallet: user.id, alias: user.alias, network: user.network },
+    user: {
+      wallet: user.id,
+      alias: user.alias,
+      publicKey: user.public_key,
+      network: user.network,
+      createdAt: user.created_at,
+    },
+    accessToken: tokens.accessToken,
+    refreshToken: tokens.refreshToken,
+    expiresAt: tokens.expiresAt,
   });
-});
+}));
 
-// POST /auth/refresh — refresh access token
-router.post('/refresh', requireBody('refreshToken'), (req, res) => {
+/**
+ * POST /auth/refresh
+ * Refresh access token using refresh token
+ */
+router.post("/refresh", authLimiter, requireBody("refreshToken"), asyncHandler(async (req, res) => {
   const { refreshToken } = req.body;
+
   const payload = verifyToken(refreshToken);
-  if (!payload) {
-    return res.status(401).json({ error: 'Invalid or expired refresh token' });
+  if (!payload || payload.type !== "refresh") {
+    return res.status(401).json({ error: "Invalid refresh token" });
   }
 
-  const refreshHash = hashToken(refreshToken);
-  const session = Sessions.findByRefreshHash(refreshHash);
+  const hash = hashToken(refreshToken);
+  const session = Sessions.findByRefreshHash(hash);
   if (!session) {
-    return res.status(401).json({ error: 'Invalid refresh token' });
+    return res.status(401).json({ error: "Session not found or revoked" });
   }
 
   // Revoke old session
   Sessions.revoke(session.id);
 
   // Issue new tokens
-  const newAccess = signAccessToken({ sub: payload.sub });
-  const newRefresh = signRefreshToken({ sub: payload.sub });
-
-  const decoded = verifyToken(newRefresh);
-  const expiresAt = new Date(decoded.exp * 1000).toISOString();
+  const tokens = issueTokens(payload.sub);
+  const newSessionId = generateId("sess");
 
   Sessions.create(
-    crypto.randomUUID(),
-    payload.sub,
-    hashToken(newAccess),
-    hashToken(newRefresh),
-    expiresAt,
-    req.get('user-agent') || '',
-    req.ip
+    newSessionId, payload.sub,
+    tokens.accessTokenHash, tokens.refreshTokenHash,
+    tokens.expiresAt,
+    req.headers["user-agent"], req.ip
   );
 
-  res.json({ accessToken: newAccess, refreshToken: newRefresh });
-});
+  res.json({
+    accessToken: tokens.accessToken,
+    refreshToken: tokens.refreshToken,
+    expiresAt: tokens.expiresAt,
+  });
+}));
 
-// POST /auth/logout — revoke current session
-router.post('/logout', authenticate, (req, res) => {
+/**
+ * POST /auth/logout
+ * Revoke current session
+ */
+router.post("/logout", authenticate, asyncHandler(async (req, res) => {
   Sessions.revoke(req.session.id);
-  res.json({ message: 'Logged out' });
-});
+  Users.updateOnlineStatus(req.user.wallet, false);
+  res.json({ success: true });
+}));
 
-// POST /auth/logout-all — revoke all sessions
-router.post('/logout-all', authenticate, (req, res) => {
-  Sessions.revokeAll(req.user.id);
-  res.json({ message: 'All sessions revoked' });
-});
+/**
+ * POST /auth/logout-all
+ * Revoke all sessions for wallet
+ */
+router.post("/logout-all", authenticate, asyncHandler(async (req, res) => {
+  Sessions.revokeAll(req.user.wallet);
+  Users.updateOnlineStatus(req.user.wallet, false);
+  res.json({ success: true });
+}));
 
 module.exports = router;

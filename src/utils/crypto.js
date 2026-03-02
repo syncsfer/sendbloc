@@ -5,14 +5,26 @@ const config = require('../config');
 
 // ── Wallet Signature Verification (EIP-191) ─────────────────────────────────
 
-function generateChallenge() {
+function generateChallenge(wallet) {
   const nonce = crypto.randomBytes(16).toString('hex');
   const timestamp = Date.now();
   return {
     nonce,
     timestamp,
-    message: `SendBloc Authentication\n\nNonce: ${nonce}\nTimestamp: ${timestamp}`,
+    message: `SendBloc Authentication\n\nWallet: ${wallet}\nNonce: ${nonce}\nTimestamp: ${timestamp}`,
   };
+}
+
+function verifyChallenge(message, signature, wallet) {
+  try {
+    const recovered = ethers.verifyMessage(message, signature);
+    if (recovered.toLowerCase() !== wallet.toLowerCase()) {
+      return { valid: false, error: 'Signature does not match wallet' };
+    }
+    return { valid: true };
+  } catch {
+    return { valid: false, error: 'Invalid signature format' };
+  }
 }
 
 function verifySignature(message, signature, expectedWallet) {
@@ -23,15 +35,31 @@ function verifySignature(message, signature, expectedWallet) {
 // ── JWT ─────────────────────────────────────────────────────────────────────
 
 function signAccessToken(payload) {
-  return jwt.sign(payload, config.jwt.secret, {
+  return jwt.sign({ ...payload, type: 'access' }, config.jwt.secret, {
     expiresIn: config.jwt.expiry,
   });
 }
 
 function signRefreshToken(payload) {
-  return jwt.sign(payload, config.jwt.secret, {
+  return jwt.sign({ ...payload, type: 'refresh' }, config.jwt.secret, {
     expiresIn: config.jwt.refreshExpiry,
   });
+}
+
+function issueTokens(wallet) {
+  const accessToken = signAccessToken({ sub: wallet });
+  const refreshToken = signRefreshToken({ sub: wallet });
+
+  const decoded = jwt.verify(refreshToken, config.jwt.secret);
+  const expiresAt = new Date(decoded.exp * 1000).toISOString();
+
+  return {
+    accessToken,
+    refreshToken,
+    accessTokenHash: hashToken(accessToken),
+    refreshTokenHash: hashToken(refreshToken),
+    expiresAt,
+  };
 }
 
 function verifyToken(token) {
@@ -44,6 +72,13 @@ function verifyToken(token) {
 
 function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+// ── ID Generation ────────────────────────────────────────────────────────────
+
+function generateId(prefix = '') {
+  const id = crypto.randomUUID();
+  return prefix ? `${prefix}_${id}` : id;
 }
 
 // ── AES-256-GCM Encryption ─────────────────────────────────────────────────
@@ -98,11 +133,14 @@ function deriveSharedSecret(privateKeyHex, publicKeyHex) {
 
 module.exports = {
   generateChallenge,
+  verifyChallenge,
   verifySignature,
   signAccessToken,
   signRefreshToken,
+  issueTokens,
   verifyToken,
   hashToken,
+  generateId,
   encrypt,
   decrypt,
   generateKeyPair,
