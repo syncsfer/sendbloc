@@ -9,11 +9,17 @@
     "seed": "node src/utils/seed.js",
     "test": "node test.js"
   },
-  "keywords": ["messaging", "wallet", "encrypted", "web3"],
+  "keywords": [
+    "messaging",
+    "wallet",
+    "encrypted",
+    "web3"
+  ],
   "author": "SendBloc Protocol",
   "license": "UNLICENSED",
   "dependencies": {
     "better-sqlite3": "^11.7.0",
+    "compression": "^1.8.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "ethers": "^6.13.4",

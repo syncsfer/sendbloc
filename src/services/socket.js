@@ -1,18 +1,14 @@
-const { Server } = require('socket.io');
 const { verifyToken } = require('../utils/crypto');
 const { Users } = require('../models');
-const config = require('../config');
 
 // Track online users: wallet -> Set<socketId>
 const onlineUsers = new Map();
 
-function initSocket(httpServer) {
-  const io = new Server(httpServer, {
-    cors: {
-      origin: config.cors.origins,
-      methods: ['GET', 'POST'],
-    },
-  });
+function getOnlineCount() {
+  return onlineUsers.size;
+}
+
+function initSocket(io) {
 
   // ── Auth middleware ──────────────────────────────────────────────────────
 
@@ -137,7 +133,6 @@ function initSocket(httpServer) {
     });
   });
 
-  return io;
 }
 
-module.exports = { initSocket };
+module.exports = { initSocket, getOnlineCount };
