@@ -33,7 +33,7 @@ const users = [
   { id: "0x9f2e5a8b1c4d7e0a3b6c9f2e5a8d1b4c7e0a3f6d", alias: null, online: false },
   { id: "0x3c6f9a2d5e8b1c4f7a0d3e6b9c2f5a8e1d4b7c0a", alias: "vitalik.eth", online: false },
   { id: "0x5a8b1c4e7d0a3f6c9e2b5a8d1c4f7e0a3b6d9c2e", alias: "satoshi.btc", online: false },
-  { id: "0xdemo000000000000000000000000000000000001", alias: "demo.eth", online: true },
+  { id: "0xde00000000000000000000000000000000000001", alias: "demo.eth", online: true },
 ];
 
 for (const u of users) {
