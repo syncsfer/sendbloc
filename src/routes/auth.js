@@ -8,7 +8,7 @@ const {
   hashToken,
   verifyToken,
 } = require('../utils/crypto');
-const { users, sessions } = require('../models');
+const { Users, Sessions } = require('../models');
 const { authLimiter, authenticate, requireBody } = require('../middleware');
 
 const router = Router();
@@ -53,13 +53,13 @@ router.post('/verify', authLimiter, requireBody('wallet', 'signature', 'message'
   challenges.delete(walletLower);
 
   // Find or create user (wallet = id)
-  let user = users.findById.get(walletLower);
+  let user = Users.findById(walletLower);
   if (!user) {
     if (!publicKey) {
       return res.status(400).json({ error: 'publicKey required for new accounts' });
     }
-    users.create.run(walletLower, null, publicKey, null, null, 'ethereum');
-    user = users.findById.get(walletLower);
+    Users.create(walletLower, publicKey, null);
+    user = Users.findById(walletLower);
   }
 
   // Issue tokens
@@ -70,14 +70,14 @@ router.post('/verify', authLimiter, requireBody('wallet', 'signature', 'message'
   const decoded = verifyToken(refreshToken);
   const expiresAt = new Date(decoded.exp * 1000).toISOString();
 
-  sessions.create.run(
+  Sessions.create(
     crypto.randomUUID(),
     user.id,
     hashToken(accessToken),
     hashToken(refreshToken),
+    expiresAt,
     req.get('user-agent') || '',
-    req.ip,
-    expiresAt
+    req.ip
   );
 
   res.json({
@@ -96,13 +96,13 @@ router.post('/refresh', requireBody('refreshToken'), (req, res) => {
   }
 
   const refreshHash = hashToken(refreshToken);
-  const session = sessions.findByRefreshHash.get(refreshHash);
+  const session = Sessions.findByRefreshHash(refreshHash);
   if (!session) {
     return res.status(401).json({ error: 'Invalid refresh token' });
   }
 
   // Revoke old session
-  sessions.revoke.run(session.token_hash);
+  Sessions.revoke(session.id);
 
   // Issue new tokens
   const newAccess = signAccessToken({ sub: payload.sub });
@@ -111,14 +111,14 @@ router.post('/refresh', requireBody('refreshToken'), (req, res) => {
   const decoded = verifyToken(newRefresh);
   const expiresAt = new Date(decoded.exp * 1000).toISOString();
 
-  sessions.create.run(
+  Sessions.create(
     crypto.randomUUID(),
     payload.sub,
     hashToken(newAccess),
     hashToken(newRefresh),
+    expiresAt,
     req.get('user-agent') || '',
-    req.ip,
-    expiresAt
+    req.ip
   );
 
   res.json({ accessToken: newAccess, refreshToken: newRefresh });
@@ -126,13 +126,13 @@ router.post('/refresh', requireBody('refreshToken'), (req, res) => {
 
 // POST /auth/logout — revoke current session
 router.post('/logout', authenticate, (req, res) => {
-  sessions.revoke.run(req.session.token_hash);
+  Sessions.revoke(req.session.id);
   res.json({ message: 'Logged out' });
 });
 
 // POST /auth/logout-all — revoke all sessions
 router.post('/logout-all', authenticate, (req, res) => {
-  sessions.revokeByUserId.run(req.user.id);
+  Sessions.revokeAll(req.user.id);
   res.json({ message: 'All sessions revoked' });
 });
 

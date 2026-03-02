@@ -1,5 +1,5 @@
 const { Router } = require('express');
-const { keyExchanges } = require('../models');
+const { KeyExchange } = require('../models');
 const { authenticate, requireBody } = require('../middleware');
 const config = require('../config');
 
@@ -11,7 +11,7 @@ const router = Router();
 router.post('/keys/exchange', authenticate, requireBody('recipientId', 'publicKey'), (req, res) => {
   const { recipientId, publicKey } = req.body;
 
-  const result = keyExchanges.create.run(req.user.id, recipientId, publicKey);
+  const result = KeyExchange.create(req.user.id, recipientId, publicKey);
 
   // Notify recipient via Socket.IO
   const io = req.app.get('io');
@@ -28,28 +28,15 @@ router.post('/keys/exchange', authenticate, requireBody('recipientId', 'publicKe
 
 // GET /keys/pending — pending key exchange requests
 router.get('/keys/pending', authenticate, (req, res) => {
-  const pending = keyExchanges.findPending.all(req.user.id);
+  const pending = KeyExchange.getPending(req.user.id);
   res.json(pending);
 });
 
 // POST /keys/accept/:id — accept key exchange
 router.post('/keys/accept/:id', authenticate, (req, res) => {
-  const exchange = keyExchanges.findById.get(req.params.id);
-  if (!exchange) {
-    return res.status(404).json({ error: 'Key exchange not found' });
-  }
-  if (exchange.recipient_id !== req.user.id) {
-    return res.status(403).json({ error: 'Not authorized' });
-  }
-
-  keyExchanges.accept.run(exchange.id);
-
-  // Notify sender
-  const io = req.app.get('io');
-  if (io) {
-    io.to(`user:${exchange.sender_id}`).emit('key:exchange_accepted', {
-      recipientId: req.user.id,
-    });
+  const result = KeyExchange.accept(req.params.id, req.user.id);
+  if (result.changes === 0) {
+    return res.status(404).json({ error: 'Key exchange not found or not authorized' });
   }
 
   res.json({ message: 'Key exchange accepted' });

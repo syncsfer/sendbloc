@@ -1,6 +1,6 @@
 const { Server } = require('socket.io');
 const { verifyToken } = require('../utils/crypto');
-const { users } = require('../models');
+const { Users } = require('../models');
 const config = require('../config');
 
 // Track online users: wallet -> Set<socketId>
@@ -25,7 +25,7 @@ function initSocket(httpServer) {
     if (!payload) {
       return next(new Error('Invalid token'));
     }
-    const user = users.findById.get(payload.sub);
+    const user = Users.findById(payload.sub);
     if (!user) {
       return next(new Error('User not found'));
     }

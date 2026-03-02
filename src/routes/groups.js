@@ -1,27 +1,27 @@
 const { Router } = require('express');
 const crypto = require('crypto');
-const { groups, groupMembers } = require('../models');
+const { Groups } = require('../models');
 const { authenticate, requireBody } = require('../middleware');
 
 const router = Router();
 
 // GET /groups — list user's groups
 router.get('/', authenticate, (req, res) => {
-  const list = groups.findByUser.all(req.user.id);
+  const list = Groups.getForUser(req.user.id);
   res.json(list);
 });
 
 // POST /groups — create group
 router.post('/', authenticate, requireBody('name'), (req, res) => {
-  const { name, description, avatar_seed } = req.body;
+  const { name, description } = req.body;
   const groupId = `group_${crypto.randomUUID().slice(0, 8)}`;
 
-  groups.create.run(groupId, name, description || null, req.user.id, avatar_seed || null);
+  Groups.create(groupId, name, req.user.id, description || null);
 
   // Creator becomes admin
-  groupMembers.add.run(groupId, req.user.id, 'admin');
+  Groups.addMember(groupId, req.user.id, 'admin');
 
-  const group = groups.findById.get(groupId);
+  const group = Groups.findById(groupId);
 
   // Notify via socket
   const io = req.app.get('io');
@@ -34,53 +34,47 @@ router.post('/', authenticate, requireBody('name'), (req, res) => {
 
 // GET /groups/:id — group details + members
 router.get('/:id', authenticate, (req, res) => {
-  const group = groups.findById.get(req.params.id);
+  const group = Groups.findById(req.params.id);
   if (!group) {
     return res.status(404).json({ error: 'Group not found' });
   }
 
-  const membership = groupMembers.findMembership.get(group.id, req.user.id);
-  if (!membership) {
+  if (!Groups.isMember(group.id, req.user.id)) {
     return res.status(403).json({ error: 'Not a member of this group' });
   }
 
-  const members = groupMembers.findByGroup.all(group.id);
+  const members = Groups.getMembers(group.id);
   res.json({ ...group, members });
 });
 
 // PATCH /groups/:id — update group (admin only)
 router.patch('/:id', authenticate, (req, res) => {
-  const group = groups.findById.get(req.params.id);
+  const group = Groups.findById(req.params.id);
   if (!group) {
     return res.status(404).json({ error: 'Group not found' });
   }
 
-  const membership = groupMembers.findMembership.get(group.id, req.user.id);
-  if (!membership || membership.role !== 'admin') {
+  const role = Groups.getMemberRole(group.id, req.user.id);
+  if (role !== 'admin') {
     return res.status(403).json({ error: 'Admin access required' });
   }
 
-  const { name, description, avatar_seed } = req.body;
-  groups.update.run(
-    name ?? group.name,
-    description ?? group.description,
-    avatar_seed ?? group.avatar_seed,
-    group.id
-  );
+  const { name, description } = req.body;
+  Groups.update(group.id, { name, description });
 
-  const updated = groups.findById.get(group.id);
+  const updated = Groups.findById(group.id);
   res.json(updated);
 });
 
 // POST /groups/:id/members — add members
 router.post('/:id/members', authenticate, requireBody('userIds'), (req, res) => {
-  const group = groups.findById.get(req.params.id);
+  const group = Groups.findById(req.params.id);
   if (!group) {
     return res.status(404).json({ error: 'Group not found' });
   }
 
-  const membership = groupMembers.findMembership.get(group.id, req.user.id);
-  if (!membership || membership.role !== 'admin') {
+  const role = Groups.getMemberRole(group.id, req.user.id);
+  if (role !== 'admin') {
     return res.status(403).json({ error: 'Admin access required' });
   }
 
@@ -88,47 +82,47 @@ router.post('/:id/members', authenticate, requireBody('userIds'), (req, res) => 
   const io = req.app.get('io');
 
   for (const userId of userIds) {
-    groupMembers.add.run(group.id, userId, 'member');
+    Groups.addMember(group.id, userId, 'member');
     if (io) {
       io.to(`user:${userId}`).emit('group:created', { groupId: group.id, name: group.name });
       io.to(`group:${group.id}`).emit('group:member_added', { groupId: group.id, userId });
     }
   }
 
-  const members = groupMembers.findByGroup.all(group.id);
+  const members = Groups.getMembers(group.id);
   res.json(members);
 });
 
 // DELETE /groups/:id/members/:uid — remove member
 router.delete('/:id/members/:uid', authenticate, (req, res) => {
-  const group = groups.findById.get(req.params.id);
+  const group = Groups.findById(req.params.id);
   if (!group) {
     return res.status(404).json({ error: 'Group not found' });
   }
 
-  const membership = groupMembers.findMembership.get(group.id, req.user.id);
-  if (!membership || membership.role !== 'admin') {
+  const role = Groups.getMemberRole(group.id, req.user.id);
+  if (role !== 'admin') {
     return res.status(403).json({ error: 'Admin access required' });
   }
 
-  groupMembers.remove.run(group.id, req.params.uid);
+  Groups.removeMember(group.id, req.params.uid);
   res.json({ message: 'Member removed' });
 });
 
 // POST /groups/:id/leave — leave group
 router.post('/:id/leave', authenticate, (req, res) => {
-  const group = groups.findById.get(req.params.id);
+  const group = Groups.findById(req.params.id);
   if (!group) {
     return res.status(404).json({ error: 'Group not found' });
   }
 
-  groupMembers.remove.run(group.id, req.user.id);
+  Groups.removeMember(group.id, req.user.id);
   res.json({ message: 'Left group' });
 });
 
 // DELETE /groups/:id — delete group (creator only)
 router.delete('/:id', authenticate, (req, res) => {
-  const group = groups.findById.get(req.params.id);
+  const group = Groups.findById(req.params.id);
   if (!group) {
     return res.status(404).json({ error: 'Group not found' });
   }
@@ -137,8 +131,8 @@ router.delete('/:id', authenticate, (req, res) => {
     return res.status(403).json({ error: 'Only the creator can delete this group' });
   }
 
-  groupMembers.removeAll.run(group.id);
-  groups.delete.run(group.id);
+  // group_members cascade on delete
+  Groups.delete(group.id);
   res.json({ message: 'Group deleted' });
 });
 

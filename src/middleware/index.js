@@ -33,7 +33,7 @@ function authenticate(req, res, next) {
   req.session = session;
 
   // Resolve full user record for downstream route handlers
-  const userRecord = Users.findByWallet(payload.sub);
+  const userRecord = Users.findById(payload.sub);
   if (userRecord) {
     req.user = { ...userRecord, wallet: payload.sub };
   }

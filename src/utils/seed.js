@@ -7,7 +7,8 @@
 
 require('dotenv').config();
 const crypto = require('crypto');
-const { db, users, contacts, messages, groups, groupMembers, settings } = require('../models');
+const { getDb } = require('../models/database');
+const { Users, Contacts, Messages, Groups, Settings } = require('../models');
 
 const DEMO_WALLETS = [
   { wallet: '0xalice000000000000000000000000000000000001', alias: 'Alice', network: 'ethereum' },
@@ -24,11 +25,12 @@ function generateConversationId(a, b) {
 function seedDatabase() {
   console.log('Seeding database...\n');
 
+  const db = getDb();
   const insertAll = db.transaction(() => {
     // 1. Create users (wallet = id, public_key is NOT NULL)
     for (const w of DEMO_WALLETS) {
       const publicKey = crypto.randomBytes(32).toString('hex');
-      users.create.run(w.wallet, w.alias, publicKey, null, null, w.network);
+      Users.create(w.wallet, publicKey, w.alias);
       console.log(`  Created user: ${w.alias} (${w.wallet})`);
     }
 
@@ -39,16 +41,16 @@ function seedDatabase() {
       [1, 3], [3, 1],
     ];
     for (const [a, b] of contactPairs) {
-      contacts.create.run(DEMO_WALLETS[a].wallet, DEMO_WALLETS[b].wallet, null);
+      Contacts.add(DEMO_WALLETS[a].wallet, DEMO_WALLETS[b].wallet, null);
     }
     console.log('  Created contact relationships');
 
     // 3. Create a group
     const groupId = `group_${crypto.randomUUID().slice(0, 8)}`;
-    groups.create.run(groupId, 'SendBloc Devs', 'Core dev team', DEMO_WALLETS[0].wallet, null);
-    groupMembers.add.run(groupId, DEMO_WALLETS[0].wallet, 'admin');
-    groupMembers.add.run(groupId, DEMO_WALLETS[1].wallet, 'member');
-    groupMembers.add.run(groupId, DEMO_WALLETS[2].wallet, 'member');
+    Groups.create(groupId, 'SendBloc Devs', DEMO_WALLETS[0].wallet, 'Core dev team');
+    Groups.addMember(groupId, DEMO_WALLETS[0].wallet, 'admin');
+    Groups.addMember(groupId, DEMO_WALLETS[1].wallet, 'member');
+    Groups.addMember(groupId, DEMO_WALLETS[2].wallet, 'member');
     console.log('  Created group: SendBloc Devs');
 
     // 4. Create demo messages
@@ -64,22 +66,29 @@ function seedDatabase() {
       const iv = crypto.randomBytes(12).toString('hex');
       const authTag = crypto.randomBytes(16).toString('hex');
       const messageId = crypto.randomUUID();
-      messages.create.run(
-        messageId,
-        convId,
-        DEMO_WALLETS[msg.from].wallet,
-        DEMO_WALLETS[msg.to].wallet,
-        'text',
-        msg.text,
+      Messages.create({
+        id: messageId,
+        conversationId: convId,
+        senderId: DEMO_WALLETS[msg.from].wallet,
+        recipientId: DEMO_WALLETS[msg.to].wallet,
+        type: 'text',
+        content: msg.text,
         iv,
-        authTag
-      );
+        authTag,
+      });
     }
     console.log('  Created demo messages');
 
     // 5. Settings for all users
     for (const w of DEMO_WALLETS) {
-      settings.upsert.run(w.wallet, 1, 1, 'light', 1, 0, 'ethereum');
+      Settings.upsert(w.wallet, {
+        notifications: true,
+        sound: true,
+        theme: 'light',
+        readReceipts: true,
+        biometricLock: false,
+        network: 'ethereum',
+      });
     }
     console.log('  Created user settings');
   });
