@@ -1,40 +1,58 @@
-const { Router } = require('express');
-const { Settings } = require('../models');
-const { authenticate } = require('../middleware');
+// ═══════════════════════════════════════════
+// SENDBLOC — Settings Routes
+// ═══════════════════════════════════════════
+
+const { Router } = require("express");
+const { Settings } = require("../models");
+const { asyncHandler, authenticate } = require("../middleware");
 
 const router = Router();
 
-// GET /settings — get user settings
-router.get('/', authenticate, (req, res) => {
-  const userSettings = Settings.get(req.user.id);
-  if (!userSettings) {
-    // Return defaults matching schema
+/**
+ * GET /settings
+ * Get user settings
+ */
+router.get("/", authenticate, asyncHandler(async (req, res) => {
+  const settings = Settings.get(req.user.wallet);
+
+  if (!settings) {
     return res.json({
-      notifications: 1,
-      sound: 1,
-      theme: 'light',
-      read_receipts: 1,
-      biometric_lock: 0,
-      network: 'ethereum',
+      notifications: true,
+      readReceipts: true,
+      biometricLock: false,
+      sound: true,
+      theme: "light",
+      network: "ethereum",
     });
   }
-  res.json(userSettings);
-});
 
-// PUT /settings — update settings
-router.put('/', authenticate, (req, res) => {
-  const {
-    notifications = true,
-    sound = true,
-    theme = 'light',
-    read_receipts: readReceipts = true,
-    biometric_lock: biometricLock = false,
-    network = 'ethereum',
-  } = req.body;
+  res.json({
+    notifications: !!settings.notifications,
+    readReceipts: !!settings.read_receipts,
+    biometricLock: !!settings.biometric_lock,
+    sound: !!settings.sound,
+    theme: settings.theme,
+    network: settings.network,
+  });
+}));
 
-  Settings.upsert(req.user.id, { notifications, sound, theme, readReceipts, biometricLock, network });
-  const updated = Settings.get(req.user.id);
-  res.json(updated);
-});
+/**
+ * PUT /settings
+ * Update user settings
+ */
+router.put("/", authenticate, asyncHandler(async (req, res) => {
+  Settings.upsert(req.user.wallet, req.body);
+
+  const updated = Settings.get(req.user.wallet);
+
+  res.json({
+    notifications: !!updated.notifications,
+    readReceipts: !!updated.read_receipts,
+    biometricLock: !!updated.biometric_lock,
+    sound: !!updated.sound,
+    theme: updated.theme,
+    network: updated.network,
+  });
+}));
 
 module.exports = router;
