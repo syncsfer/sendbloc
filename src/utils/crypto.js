@@ -81,6 +81,10 @@ function generateId(prefix = '') {
   return prefix ? `${prefix}_${id}` : id;
 }
 
+function conversationId(a, b) {
+  return [a, b].sort().join('-');
+}
+
 // ── AES-256-GCM Encryption ─────────────────────────────────────────────────
 
 function encrypt(plaintext, key) {
@@ -141,6 +145,7 @@ module.exports = {
   verifyToken,
   hashToken,
   generateId,
+  conversationId,
   encrypt,
   decrypt,
   generateKeyPair,
