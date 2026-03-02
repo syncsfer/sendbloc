@@ -1,48 +1,53 @@
-const db = require('./database');
+const database = require('./database');
+const db = database.init();
 
-// ── Users ───────────────────────────────────────────────────────────────────
+// ── Users (wallet = id) ─────────────────────────────────────────────────────
+
+const findUserById = db.prepare('SELECT * FROM users WHERE id = ?');
 
 const users = {
-  findByWallet: db.prepare('SELECT * FROM users WHERE wallet = ?'),
-  findById: db.prepare('SELECT * FROM users WHERE id = ?'),
+  findById: findUserById,
+  findByWallet: findUserById, // alias — wallet IS the id
   create: db.prepare(
-    'INSERT INTO users (wallet, alias, network, public_key) VALUES (?, ?, ?, ?)'
+    'INSERT INTO users (id, alias, public_key, encrypted_priv, avatar_gradient, network) VALUES (?, ?, ?, ?, ?, ?)'
   ),
   update: db.prepare(
-    'UPDATE users SET alias = ?, network = ?, avatar_url = ?, updated_at = datetime(\'now\') WHERE id = ?'
+    "UPDATE users SET alias = ?, network = ?, avatar_gradient = ?, updated_at = datetime('now') WHERE id = ?"
   ),
   delete: db.prepare('DELETE FROM users WHERE id = ?'),
   search: db.prepare(
-    'SELECT id, wallet, alias, avatar_url, network FROM users WHERE wallet LIKE ? OR alias LIKE ? LIMIT 20'
+    'SELECT id, alias, avatar_gradient, network FROM users WHERE id LIKE ? OR alias LIKE ? LIMIT 20'
   ),
   getPublicProfile: db.prepare(
-    'SELECT id, wallet, alias, avatar_url, network, created_at FROM users WHERE wallet = ?'
+    'SELECT id, alias, avatar_gradient, network, created_at FROM users WHERE id = ?'
   ),
-  rotateAddress: db.prepare('UPDATE users SET wallet = ?, updated_at = datetime(\'now\') WHERE id = ?'),
+  updateLastSeen: db.prepare(
+    "UPDATE users SET last_seen = datetime('now'), is_online = ? WHERE id = ?"
+  ),
 };
 
 // ── Sessions ────────────────────────────────────────────────────────────────
 
 const sessions = {
   create: db.prepare(
-    'INSERT INTO sessions (user_id, token_hash, refresh_hash, ip_address, user_agent, expires_at) VALUES (?, ?, ?, ?, ?, ?)'
+    'INSERT INTO sessions (id, user_id, token_hash, refresh_hash, device_info, ip_address, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
   ),
-  findByTokenHash: db.prepare('SELECT * FROM sessions WHERE token_hash = ?'),
-  findByRefreshHash: db.prepare('SELECT * FROM sessions WHERE refresh_hash = ?'),
-  deleteByTokenHash: db.prepare('DELETE FROM sessions WHERE token_hash = ?'),
-  deleteByUserId: db.prepare('DELETE FROM sessions WHERE user_id = ?'),
-  deleteExpired: db.prepare('DELETE FROM sessions WHERE expires_at < datetime(\'now\')'),
+  findByTokenHash: db.prepare('SELECT * FROM sessions WHERE token_hash = ? AND is_revoked = 0'),
+  findByRefreshHash: db.prepare('SELECT * FROM sessions WHERE refresh_hash = ? AND is_revoked = 0'),
+  revoke: db.prepare('UPDATE sessions SET is_revoked = 1 WHERE token_hash = ?'),
+  revokeByUserId: db.prepare('UPDATE sessions SET is_revoked = 1 WHERE user_id = ?'),
+  deleteExpired: db.prepare("DELETE FROM sessions WHERE expires_at < datetime('now')"),
 };
 
 // ── Contacts ────────────────────────────────────────────────────────────────
 
 const contacts = {
   findByUser: db.prepare(`
-    SELECT c.*, u.wallet, u.alias AS contact_alias, u.avatar_url, u.network
+    SELECT c.*, u.alias AS contact_alias, u.avatar_gradient, u.network
     FROM contacts c
-    JOIN users u ON u.id = c.contact_id
+    LEFT JOIN users u ON u.id = c.contact_id
     WHERE c.user_id = ?
-    ORDER BY c.created_at DESC
+    ORDER BY c.added_at DESC
   `),
   findById: db.prepare('SELECT * FROM contacts WHERE id = ? AND user_id = ?'),
   findByPair: db.prepare('SELECT * FROM contacts WHERE user_id = ? AND contact_id = ?'),
@@ -51,10 +56,10 @@ const contacts = {
   ),
   updateAlias: db.prepare('UPDATE contacts SET alias = ? WHERE id = ? AND user_id = ?'),
   toggleBlock: db.prepare(
-    'UPDATE contacts SET blocked = CASE WHEN blocked = 0 THEN 1 ELSE 0 END WHERE id = ? AND user_id = ?'
+    'UPDATE contacts SET is_blocked = CASE WHEN is_blocked = 0 THEN 1 ELSE 0 END WHERE id = ? AND user_id = ?'
   ),
   toggleMute: db.prepare(
-    'UPDATE contacts SET muted = CASE WHEN muted = 0 THEN 1 ELSE 0 END WHERE id = ? AND user_id = ?'
+    'UPDATE contacts SET is_muted = CASE WHEN is_muted = 0 THEN 1 ELSE 0 END WHERE id = ? AND user_id = ?'
   ),
   delete: db.prepare('DELETE FROM contacts WHERE id = ? AND user_id = ?'),
 };
@@ -64,46 +69,43 @@ const contacts = {
 const messages = {
   getConversations: db.prepare(`
     SELECT m.conversation_id,
-           m.encrypted_content, m.created_at AS last_message_at,
+           m.content, m.created_at AS last_message_at,
            CASE
              WHEN m.recipient_id = ? THEN m.sender_id
              ELSE m.recipient_id
-           END AS other_user_id,
-           m.group_id
+           END AS other_user_id
     FROM messages m
     INNER JOIN (
-      SELECT conversation_id, MAX(id) AS max_id
+      SELECT conversation_id, MAX(created_at) AS max_created
       FROM messages
-      WHERE (sender_id = ? OR recipient_id = ?) AND deleted = 0
+      WHERE (sender_id = ? OR recipient_id = ?) AND is_deleted = 0
       GROUP BY conversation_id
-    ) latest ON m.id = latest.max_id
+    ) latest ON m.conversation_id = latest.conversation_id AND m.created_at = latest.max_created
+    WHERE m.is_deleted = 0
     ORDER BY m.created_at DESC
   `),
   getByConversation: db.prepare(`
     SELECT * FROM messages
-    WHERE conversation_id = ? AND deleted = 0
+    WHERE conversation_id = ? AND is_deleted = 0
     ORDER BY created_at ASC
     LIMIT ? OFFSET ?
   `),
   getUnreadCount: db.prepare(`
     SELECT conversation_id, COUNT(*) AS count
     FROM messages
-    WHERE recipient_id = ? AND deleted = 0
-      AND NOT EXISTS (
-        SELECT 1 WHERE json_extract(read_by, '$') LIKE '%' || ? || '%'
-      )
+    WHERE recipient_id = ? AND is_deleted = 0 AND is_read = 0
     GROUP BY conversation_id
   `),
   findById: db.prepare('SELECT * FROM messages WHERE id = ?'),
   create: db.prepare(`
-    INSERT INTO messages (conversation_id, sender_id, recipient_id, group_id, encrypted_content, iv, auth_tag, message_type)
+    INSERT INTO messages (id, conversation_id, sender_id, recipient_id, type, content, iv, auth_tag)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `),
-  markRead: db.prepare('UPDATE messages SET read_by = ? WHERE id = ?'),
+  markRead: db.prepare('UPDATE messages SET is_read = 1 WHERE id = ?'),
   updateReactions: db.prepare('UPDATE messages SET reactions = ? WHERE id = ?'),
-  softDelete: db.prepare('UPDATE messages SET deleted = 1 WHERE id = ?'),
+  softDelete: db.prepare('UPDATE messages SET is_deleted = 1 WHERE id = ?'),
   deleteConversation: db.prepare(
-    'UPDATE messages SET deleted = 1 WHERE conversation_id = ? AND (sender_id = ? OR recipient_id = ?)'
+    'UPDATE messages SET is_deleted = 1 WHERE conversation_id = ? AND (sender_id = ? OR recipient_id = ?)'
   ),
 };
 
@@ -119,17 +121,17 @@ const groups = {
   `),
   findById: db.prepare('SELECT * FROM groups_ WHERE id = ?'),
   create: db.prepare(
-    'INSERT INTO groups_ (name, description, avatar_url, creator_id) VALUES (?, ?, ?, ?)'
+    'INSERT INTO groups_ (id, name, description, creator_id, avatar_seed) VALUES (?, ?, ?, ?, ?)'
   ),
   update: db.prepare(
-    'UPDATE groups_ SET name = ?, description = ?, avatar_url = ?, updated_at = datetime(\'now\') WHERE id = ?'
+    "UPDATE groups_ SET name = ?, description = ?, avatar_seed = ?, updated_at = datetime('now') WHERE id = ?"
   ),
   delete: db.prepare('DELETE FROM groups_ WHERE id = ?'),
 };
 
 const groupMembers = {
   findByGroup: db.prepare(`
-    SELECT gm.*, u.wallet, u.alias, u.avatar_url
+    SELECT gm.*, u.alias, u.avatar_gradient
     FROM group_members gm
     JOIN users u ON u.id = gm.user_id
     WHERE gm.group_id = ?
@@ -153,11 +155,11 @@ const keyExchanges = {
     'INSERT INTO key_exchanges (sender_id, recipient_id, public_key) VALUES (?, ?, ?)'
   ),
   findPending: db.prepare(
-    'SELECT ke.*, u.wallet AS sender_wallet FROM key_exchanges ke JOIN users u ON u.id = ke.sender_id WHERE ke.recipient_id = ? AND ke.status = \'pending\''
+    "SELECT * FROM key_exchanges WHERE recipient_id = ? AND status = 'pending'"
   ),
   findById: db.prepare('SELECT * FROM key_exchanges WHERE id = ?'),
   accept: db.prepare(
-    'UPDATE key_exchanges SET status = \'accepted\' WHERE id = ?'
+    "UPDATE key_exchanges SET status = 'accepted' WHERE id = ?"
   ),
 };
 
@@ -165,7 +167,7 @@ const keyExchanges = {
 
 const addressHistory = {
   create: db.prepare(
-    'INSERT INTO address_history (user_id, wallet) VALUES (?, ?)'
+    'INSERT INTO address_history (user_id, old_wallet, old_alias) VALUES (?, ?, ?)'
   ),
   findByUser: db.prepare(
     'SELECT * FROM address_history WHERE user_id = ? ORDER BY rotated_at DESC'
@@ -179,13 +181,13 @@ const notifications = {
     'SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?'
   ),
   create: db.prepare(
-    'INSERT INTO notifications (user_id, type, title, body, data) VALUES (?, ?, ?, ?, ?)'
+    'INSERT INTO notifications (id, user_id, type, title, body, data) VALUES (?, ?, ?, ?, ?, ?)'
   ),
   markRead: db.prepare(
-    'UPDATE notifications SET read = 1 WHERE id = ? AND user_id = ?'
+    'UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?'
   ),
   markAllRead: db.prepare(
-    'UPDATE notifications SET read = 1 WHERE user_id = ?'
+    'UPDATE notifications SET is_read = 1 WHERE user_id = ?'
   ),
 };
 
@@ -194,13 +196,15 @@ const notifications = {
 const settings = {
   findByUser: db.prepare('SELECT * FROM user_settings WHERE user_id = ?'),
   upsert: db.prepare(`
-    INSERT INTO user_settings (user_id, notifications_enabled, sound_enabled, theme, language, updated_at)
-    VALUES (?, ?, ?, ?, ?, datetime('now'))
+    INSERT INTO user_settings (user_id, notifications, sound, theme, read_receipts, biometric_lock, network, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
     ON CONFLICT(user_id)
-    DO UPDATE SET notifications_enabled = excluded.notifications_enabled,
-                  sound_enabled = excluded.sound_enabled,
+    DO UPDATE SET notifications = excluded.notifications,
+                  sound = excluded.sound,
                   theme = excluded.theme,
-                  language = excluded.language,
+                  read_receipts = excluded.read_receipts,
+                  biometric_lock = excluded.biometric_lock,
+                  network = excluded.network,
                   updated_at = datetime('now')
   `),
 };
@@ -211,12 +215,12 @@ const Sessions = {
   findByTokenHash(hash) { return sessions.findByTokenHash.get(hash); },
   findByRefreshHash(hash) { return sessions.findByRefreshHash.get(hash); },
   create(...args) { return sessions.create.run(...args); },
-  deleteByTokenHash(hash) { return sessions.deleteByTokenHash.run(hash); },
-  deleteByUserId(uid) { return sessions.deleteByUserId.run(uid); },
+  revoke(tokenHash) { return sessions.revoke.run(tokenHash); },
+  revokeByUserId(uid) { return sessions.revokeByUserId.run(uid); },
 };
 
 const Users = {
-  findByWallet(wallet) { return users.findByWallet.get(wallet); },
+  findByWallet(wallet) { return users.findById.get(wallet); },
   findById(id) { return users.findById.get(id); },
 };
 

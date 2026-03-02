@@ -1,4 +1,5 @@
 const { Router } = require('express');
+const crypto = require('crypto');
 const { groups, groupMembers } = require('../models');
 const { authenticate, requireBody } = require('../middleware');
 
@@ -12,9 +13,10 @@ router.get('/', authenticate, (req, res) => {
 
 // POST /groups — create group
 router.post('/', authenticate, requireBody('name'), (req, res) => {
-  const { name, description, avatar_url } = req.body;
-  const result = groups.create.run(name, description || null, avatar_url || null, req.user.id);
-  const groupId = result.lastInsertRowid;
+  const { name, description, avatar_seed } = req.body;
+  const groupId = `group_${crypto.randomUUID().slice(0, 8)}`;
+
+  groups.create.run(groupId, name, description || null, req.user.id, avatar_seed || null);
 
   // Creator becomes admin
   groupMembers.add.run(groupId, req.user.id, 'admin');
@@ -58,11 +60,11 @@ router.patch('/:id', authenticate, (req, res) => {
     return res.status(403).json({ error: 'Admin access required' });
   }
 
-  const { name, description, avatar_url } = req.body;
+  const { name, description, avatar_seed } = req.body;
   groups.update.run(
     name ?? group.name,
     description ?? group.description,
-    avatar_url ?? group.avatar_url,
+    avatar_seed ?? group.avatar_seed,
     group.id
   );
 

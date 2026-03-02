@@ -1,4 +1,5 @@
 const { Router } = require('express');
+const crypto = require('crypto');
 const { messages, users } = require('../models');
 const { authenticate, messageLimiter, requireBody } = require('../middleware');
 
@@ -14,9 +15,8 @@ router.get('/conversations', authenticate, (req, res) => {
     return {
       conversationId: c.conversation_id,
       lastMessageAt: c.last_message_at,
-      groupId: c.group_id,
       otherUser: otherUser
-        ? { id: otherUser.id, wallet: otherUser.wallet, alias: otherUser.alias, avatar_url: otherUser.avatar_url }
+        ? { id: otherUser.id, alias: otherUser.alias, avatar_gradient: otherUser.avatar_gradient }
         : null,
     };
   });
@@ -26,7 +26,7 @@ router.get('/conversations', authenticate, (req, res) => {
 
 // GET /messages/unread/count — unread counts per conversation
 router.get('/unread/count', authenticate, (req, res) => {
-  const counts = messages.getUnreadCount.all(req.user.id, String(req.user.id));
+  const counts = messages.getUnreadCount.all(req.user.id);
   res.json(counts);
 });
 
@@ -39,38 +39,30 @@ router.get('/:convId', authenticate, (req, res) => {
 });
 
 // POST /messages/send — send an encrypted message
-router.post('/send', authenticate, messageLimiter, requireBody('recipientId', 'encryptedContent', 'iv', 'authTag'), (req, res) => {
-  const { recipientId, groupId, encryptedContent, iv, authTag, messageType } = req.body;
+router.post('/send', authenticate, messageLimiter, requireBody('recipientId', 'content', 'iv', 'authTag'), (req, res) => {
+  const { recipientId, content, iv, authTag, type } = req.body;
 
-  // Generate conversation ID
-  let conversationId;
-  if (groupId) {
-    conversationId = `group-${groupId}`;
-  } else {
-    conversationId = [req.user.id, recipientId].sort((a, b) => a - b).join('-');
-  }
+  // Generate conversation ID (string sort for wallet addresses)
+  const conversationId = [req.user.id, recipientId].sort().join('-');
 
-  const result = messages.create.run(
+  const messageId = crypto.randomUUID();
+  messages.create.run(
+    messageId,
     conversationId,
     req.user.id,
-    groupId ? null : recipientId,
-    groupId || null,
-    encryptedContent,
+    recipientId,
+    type || 'text',
+    content,
     iv,
-    authTag,
-    messageType || 'text'
+    authTag
   );
 
-  const message = messages.findById.get(result.lastInsertRowid);
+  const message = messages.findById.get(messageId);
 
   // Emit via Socket.IO if available
   const io = req.app.get('io');
   if (io) {
-    if (groupId) {
-      io.to(`group:${groupId}`).emit('message:new', message);
-    } else {
-      io.to(`user:${recipientId}`).emit('message:new', message);
-    }
+    io.to(`user:${recipientId}`).emit('message:new', message);
   }
 
   res.status(201).json(message);
@@ -83,11 +75,7 @@ router.post('/:id/read', authenticate, (req, res) => {
     return res.status(404).json({ error: 'Message not found' });
   }
 
-  const readBy = JSON.parse(msg.read_by || '[]');
-  if (!readBy.includes(req.user.id)) {
-    readBy.push(req.user.id);
-    messages.markRead.run(JSON.stringify(readBy), msg.id);
-  }
+  messages.markRead.run(msg.id);
 
   // Emit read receipt
   const io = req.app.get('io');
@@ -108,19 +96,15 @@ router.post('/:id/reaction', authenticate, requireBody('emoji'), (req, res) => {
     return res.status(404).json({ error: 'Message not found' });
   }
 
-  const reactions = JSON.parse(msg.reactions || '{}');
+  const reactions = JSON.parse(msg.reactions || '[]');
   const { emoji } = req.body;
 
-  if (!reactions[emoji]) {
-    reactions[emoji] = [];
-  }
-
-  const idx = reactions[emoji].indexOf(req.user.id);
+  // Toggle: add if not present, remove if already reacted
+  const idx = reactions.findIndex((r) => r.emoji === emoji && r.userId === req.user.id);
   if (idx === -1) {
-    reactions[emoji].push(req.user.id);
+    reactions.push({ emoji, userId: req.user.id });
   } else {
-    reactions[emoji].splice(idx, 1);
-    if (reactions[emoji].length === 0) delete reactions[emoji];
+    reactions.splice(idx, 1);
   }
 
   messages.updateReactions.run(JSON.stringify(reactions), msg.id);
@@ -128,8 +112,7 @@ router.post('/:id/reaction', authenticate, requireBody('emoji'), (req, res) => {
   // Emit reaction update
   const io = req.app.get('io');
   if (io) {
-    const room = msg.group_id ? `group:${msg.group_id}` : `user:${msg.sender_id}`;
-    io.to(room).emit('message:reaction', { messageId: msg.id, reactions });
+    io.to(`user:${msg.sender_id}`).emit('message:reaction', { messageId: msg.id, reactions });
   }
 
   res.json({ reactions });
@@ -148,9 +131,8 @@ router.delete('/:id', authenticate, (req, res) => {
   messages.softDelete.run(msg.id);
 
   const io = req.app.get('io');
-  if (io) {
-    const room = msg.group_id ? `group:${msg.group_id}` : `user:${msg.recipient_id}`;
-    io.to(room).emit('message:deleted', { messageId: msg.id });
+  if (io && msg.recipient_id) {
+    io.to(`user:${msg.recipient_id}`).emit('message:deleted', { messageId: msg.id });
   }
 
   res.json({ message: 'Message deleted' });

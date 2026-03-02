@@ -8,12 +8,14 @@ const router = Router();
 router.get('/', authenticate, (req, res) => {
   const userSettings = settings.findByUser.get(req.user.id);
   if (!userSettings) {
-    // Return defaults
+    // Return defaults matching schema
     return res.json({
-      notifications_enabled: 1,
-      sound_enabled: 1,
-      theme: 'system',
-      language: 'en',
+      notifications: 1,
+      sound: 1,
+      theme: 'light',
+      read_receipts: 1,
+      biometric_lock: 0,
+      network: 'ethereum',
     });
   }
   res.json(userSettings);
@@ -22,13 +24,15 @@ router.get('/', authenticate, (req, res) => {
 // PUT /settings — update settings
 router.put('/', authenticate, (req, res) => {
   const {
-    notifications_enabled = 1,
-    sound_enabled = 1,
-    theme = 'system',
-    language = 'en',
+    notifications = 1,
+    sound = 1,
+    theme = 'light',
+    read_receipts = 1,
+    biometric_lock = 0,
+    network = 'ethereum',
   } = req.body;
 
-  settings.upsert.run(req.user.id, notifications_enabled, sound_enabled, theme, language);
+  settings.upsert.run(req.user.id, notifications, sound, theme, read_receipts, biometric_lock, network);
   const updated = settings.findByUser.get(req.user.id);
   res.json(updated);
 });

@@ -7,30 +7,28 @@
 
 require('dotenv').config();
 const crypto = require('crypto');
-const db = require('../models/database');
-const { users, contacts, groups, groupMembers, settings } = require('../models');
+const { db, users, contacts, messages, groups, groupMembers, settings } = require('../models');
 
 const DEMO_WALLETS = [
-  { wallet: '0xAlice000000000000000000000000000000000001', alias: 'Alice', network: 'ethereum' },
-  { wallet: '0xBob00000000000000000000000000000000000002', alias: 'Bob', network: 'ethereum' },
-  { wallet: '0xCarol000000000000000000000000000000000003', alias: 'Carol', network: 'polygon' },
-  { wallet: '0xDave0000000000000000000000000000000000004', alias: 'Dave', network: 'arbitrum' },
-  { wallet: '0xEve00000000000000000000000000000000000005', alias: 'Eve', network: 'ethereum' },
+  { wallet: '0xalice000000000000000000000000000000000001', alias: 'Alice', network: 'ethereum' },
+  { wallet: '0xbob00000000000000000000000000000000000002', alias: 'Bob', network: 'ethereum' },
+  { wallet: '0xcarol000000000000000000000000000000000003', alias: 'Carol', network: 'polygon' },
+  { wallet: '0xdave0000000000000000000000000000000000004', alias: 'Dave', network: 'arbitrum' },
+  { wallet: '0xeve00000000000000000000000000000000000005', alias: 'Eve', network: 'ethereum' },
 ];
 
 function generateConversationId(a, b) {
-  return [a, b].sort((x, y) => x - y).join('-');
+  return [a, b].sort().join('-');
 }
 
 function seedDatabase() {
   console.log('Seeding database...\n');
 
   const insertAll = db.transaction(() => {
-    // 1. Create users
-    const userIds = [];
+    // 1. Create users (wallet = id, public_key is NOT NULL)
     for (const w of DEMO_WALLETS) {
-      const result = users.create.run(w.wallet, w.alias, w.network, null);
-      userIds.push(result.lastInsertRowid);
+      const publicKey = crypto.randomBytes(32).toString('hex');
+      users.create.run(w.wallet, w.alias, publicKey, null, null, w.network);
       console.log(`  Created user: ${w.alias} (${w.wallet})`);
     }
 
@@ -41,16 +39,16 @@ function seedDatabase() {
       [1, 3], [3, 1],
     ];
     for (const [a, b] of contactPairs) {
-      contacts.create.run(userIds[a], userIds[b], null);
+      contacts.create.run(DEMO_WALLETS[a].wallet, DEMO_WALLETS[b].wallet, null);
     }
     console.log('  Created contact relationships');
 
     // 3. Create a group
-    const groupResult = groups.create.run('SendBloc Devs', 'Core dev team', null, userIds[0]);
-    const groupId = groupResult.lastInsertRowid;
-    groupMembers.add.run(groupId, userIds[0], 'admin');
-    groupMembers.add.run(groupId, userIds[1], 'member');
-    groupMembers.add.run(groupId, userIds[2], 'member');
+    const groupId = `group_${crypto.randomUUID().slice(0, 8)}`;
+    groups.create.run(groupId, 'SendBloc Devs', 'Core dev team', DEMO_WALLETS[0].wallet, null);
+    groupMembers.add.run(groupId, DEMO_WALLETS[0].wallet, 'admin');
+    groupMembers.add.run(groupId, DEMO_WALLETS[1].wallet, 'member');
+    groupMembers.add.run(groupId, DEMO_WALLETS[2].wallet, 'member');
     console.log('  Created group: SendBloc Devs');
 
     // 4. Create demo messages
@@ -61,23 +59,27 @@ function seedDatabase() {
       { from: 2, to: 0, text: 'Thanks Alice! Loving the encryption.' },
     ];
 
-    const insertMsg = db.prepare(`
-      INSERT INTO messages (conversation_id, sender_id, recipient_id, group_id, encrypted_content, iv, auth_tag, message_type)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 'text')
-    `);
-
     for (const msg of demoMessages) {
-      const convId = generateConversationId(userIds[msg.from], userIds[msg.to]);
+      const convId = generateConversationId(DEMO_WALLETS[msg.from].wallet, DEMO_WALLETS[msg.to].wallet);
       const iv = crypto.randomBytes(12).toString('hex');
       const authTag = crypto.randomBytes(16).toString('hex');
-      // In demo mode we store plaintext — in production the client encrypts
-      insertMsg.run(convId, userIds[msg.from], userIds[msg.to], null, msg.text, iv, authTag);
+      const messageId = crypto.randomUUID();
+      messages.create.run(
+        messageId,
+        convId,
+        DEMO_WALLETS[msg.from].wallet,
+        DEMO_WALLETS[msg.to].wallet,
+        'text',
+        msg.text,
+        iv,
+        authTag
+      );
     }
     console.log('  Created demo messages');
 
     // 5. Settings for all users
-    for (const uid of userIds) {
-      settings.upsert.run(uid, 1, 1, 'system', 'en');
+    for (const w of DEMO_WALLETS) {
+      settings.upsert.run(w.wallet, 1, 1, 'light', 1, 0, 'ethereum');
     }
     console.log('  Created user settings');
   });

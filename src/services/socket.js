@@ -21,17 +21,16 @@ function initSocket(httpServer) {
     if (!token) {
       return next(new Error('Authentication required'));
     }
-    try {
-      const payload = verifyToken(token);
-      const user = users.findById.get(payload.userId);
-      if (!user) {
-        return next(new Error('User not found'));
-      }
-      socket.user = user;
-      next();
-    } catch {
-      next(new Error('Invalid token'));
+    const payload = verifyToken(token);
+    if (!payload) {
+      return next(new Error('Invalid token'));
     }
+    const user = users.findById.get(payload.sub);
+    if (!user) {
+      return next(new Error('User not found'));
+    }
+    socket.user = user;
+    next();
   });
 
   // ── Connection handler ──────────────────────────────────────────────────
@@ -42,25 +41,25 @@ function initSocket(httpServer) {
     // Join personal room
     socket.join(`user:${user.id}`);
 
-    // Track online status
-    if (!onlineUsers.has(user.wallet)) {
-      onlineUsers.set(user.wallet, new Set());
+    // Track online status (wallet = id)
+    if (!onlineUsers.has(user.id)) {
+      onlineUsers.set(user.id, new Set());
     }
-    onlineUsers.get(user.wallet).add(socket.id);
+    onlineUsers.get(user.id).add(socket.id);
 
     // Broadcast online
-    socket.broadcast.emit('presence:online', { wallet: user.wallet });
+    socket.broadcast.emit('presence:online', { wallet: user.id });
 
     // ── Typing indicators ───────────────────────────────────────────────
 
     socket.on('typing:start', ({ conversationId, recipientId }) => {
       const room = recipientId ? `user:${recipientId}` : conversationId;
-      socket.to(room).emit('typing:start', { conversationId, wallet: user.wallet });
+      socket.to(room).emit('typing:start', { conversationId, wallet: user.id });
     });
 
     socket.on('typing:stop', ({ conversationId, recipientId }) => {
       const room = recipientId ? `user:${recipientId}` : conversationId;
-      socket.to(room).emit('typing:stop', { conversationId, wallet: user.wallet });
+      socket.to(room).emit('typing:stop', { conversationId, wallet: user.id });
     });
 
     // ── Read receipts ───────────────────────────────────────────────────
@@ -69,7 +68,7 @@ function initSocket(httpServer) {
       if (recipientId) {
         io.to(`user:${recipientId}`).emit('message:read', {
           conversationId,
-          readBy: user.wallet,
+          readBy: user.id,
           messageIds,
         });
       }
@@ -124,13 +123,13 @@ function initSocket(httpServer) {
     // ── Disconnect ──────────────────────────────────────────────────────
 
     socket.on('disconnect', () => {
-      const sockets = onlineUsers.get(user.wallet);
+      const sockets = onlineUsers.get(user.id);
       if (sockets) {
         sockets.delete(socket.id);
         if (sockets.size === 0) {
-          onlineUsers.delete(user.wallet);
+          onlineUsers.delete(user.id);
           socket.broadcast.emit('presence:offline', {
-            wallet: user.wallet,
+            wallet: user.id,
             lastSeen: new Date().toISOString(),
           });
         }

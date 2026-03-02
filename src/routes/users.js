@@ -1,5 +1,4 @@
 const { Router } = require('express');
-const crypto = require('crypto');
 const { users, addressHistory, sessions, settings } = require('../models');
 const { authenticate, requireWallet } = require('../middleware');
 
@@ -13,11 +12,11 @@ router.get('/me', authenticate, (req, res) => {
 
 // PATCH /users/me — update alias, network, avatar
 router.patch('/me', authenticate, (req, res) => {
-  const { alias, network, avatar_url } = req.body;
+  const { alias, network, avatar_gradient } = req.body;
   users.update.run(
     alias ?? req.user.alias,
     network ?? req.user.network,
-    avatar_url ?? req.user.avatar_url,
+    avatar_gradient ?? req.user.avatar_gradient,
     req.user.id
   );
   const updated = users.findById.get(req.user.id);
@@ -26,7 +25,7 @@ router.patch('/me', authenticate, (req, res) => {
 
 // DELETE /users/me — delete account
 router.delete('/me', authenticate, (req, res) => {
-  sessions.deleteByUserId.run(req.user.id);
+  sessions.revokeByUserId.run(req.user.id);
   users.delete.run(req.user.id);
   res.json({ message: 'Account deleted' });
 });
@@ -59,12 +58,9 @@ router.post('/me/rotate-address', authenticate, (req, res) => {
   }
 
   // Store old address in history
-  addressHistory.create.run(req.user.id, req.user.wallet);
+  addressHistory.create.run(newWallet.toLowerCase(), req.user.id, req.user.alias || null);
 
-  // Update wallet
-  users.rotateAddress.run(newWallet.toLowerCase(), req.user.id);
-  const updated = users.findById.get(req.user.id);
-  res.json(updated);
+  res.json({ message: 'Address rotation recorded', oldWallet: req.user.id, newWallet });
 });
 
 // GET /users/me/address-history — previous addresses

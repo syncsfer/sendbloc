@@ -1,4 +1,5 @@
 const { Router } = require('express');
+const crypto = require('crypto');
 const {
   generateChallenge,
   verifySignature,
@@ -25,7 +26,7 @@ router.post('/challenge', authLimiter, requireBody('wallet'), (req, res) => {
 
 // POST /auth/verify — verify wallet signature, issue tokens
 router.post('/verify', authLimiter, requireBody('wallet', 'signature', 'message'), (req, res) => {
-  const { wallet, signature, message } = req.body;
+  const { wallet, signature, message, publicKey } = req.body;
   const walletLower = wallet.toLowerCase();
 
   // Validate challenge exists and hasn't expired
@@ -51,34 +52,38 @@ router.post('/verify', authLimiter, requireBody('wallet', 'signature', 'message'
 
   challenges.delete(walletLower);
 
-  // Find or create user
-  let user = users.findByWallet.get(walletLower);
+  // Find or create user (wallet = id)
+  let user = users.findById.get(walletLower);
   if (!user) {
-    users.create.run(walletLower, null, 'ethereum', null);
-    user = users.findByWallet.get(walletLower);
+    if (!publicKey) {
+      return res.status(400).json({ error: 'publicKey required for new accounts' });
+    }
+    users.create.run(walletLower, null, publicKey, null, null, 'ethereum');
+    user = users.findById.get(walletLower);
   }
 
   // Issue tokens
-  const accessToken = signAccessToken({ sub: user.wallet });
-  const refreshToken = signRefreshToken({ sub: user.wallet });
+  const accessToken = signAccessToken({ sub: user.id });
+  const refreshToken = signRefreshToken({ sub: user.id });
 
   // Store hashed tokens
   const decoded = verifyToken(refreshToken);
   const expiresAt = new Date(decoded.exp * 1000).toISOString();
 
   sessions.create.run(
+    crypto.randomUUID(),
     user.id,
     hashToken(accessToken),
     hashToken(refreshToken),
-    req.ip,
     req.get('user-agent') || '',
+    req.ip,
     expiresAt
   );
 
   res.json({
     accessToken,
     refreshToken,
-    user: { id: user.id, wallet: user.wallet, alias: user.alias, network: user.network },
+    user: { id: user.id, wallet: user.id, alias: user.alias, network: user.network },
   });
 });
 
@@ -97,13 +102,7 @@ router.post('/refresh', requireBody('refreshToken'), (req, res) => {
   }
 
   // Revoke old session
-  sessions.deleteByTokenHash.run(session.token_hash);
-
-  // Look up user for session creation
-  const user = users.findByWallet.get(payload.sub);
-  if (!user) {
-    return res.status(401).json({ error: 'User not found' });
-  }
+  sessions.revoke.run(session.token_hash);
 
   // Issue new tokens
   const newAccess = signAccessToken({ sub: payload.sub });
@@ -113,11 +112,12 @@ router.post('/refresh', requireBody('refreshToken'), (req, res) => {
   const expiresAt = new Date(decoded.exp * 1000).toISOString();
 
   sessions.create.run(
-    user.id,
+    crypto.randomUUID(),
+    payload.sub,
     hashToken(newAccess),
     hashToken(newRefresh),
-    req.ip,
     req.get('user-agent') || '',
+    req.ip,
     expiresAt
   );
 
@@ -126,13 +126,13 @@ router.post('/refresh', requireBody('refreshToken'), (req, res) => {
 
 // POST /auth/logout — revoke current session
 router.post('/logout', authenticate, (req, res) => {
-  sessions.deleteByTokenHash.run(req.session.token_hash);
+  sessions.revoke.run(req.session.token_hash);
   res.json({ message: 'Logged out' });
 });
 
 // POST /auth/logout-all — revoke all sessions
 router.post('/logout-all', authenticate, (req, res) => {
-  sessions.deleteByUserId.run(req.user.id);
+  sessions.revokeByUserId.run(req.user.id);
   res.json({ message: 'All sessions revoked' });
 });
 
