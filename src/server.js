@@ -48,8 +48,35 @@ app.use(api, keysNetworksRoutes);
 
 // ── Health check ────────────────────────────────────────────────────────────
 
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', uptime: process.uptime() });
+app.get(['/health', '/api/health'], (_req, res) => {
+  res.json({ service: 'SendBloc API', status: 'ok', uptime: process.uptime() });
+});
+
+// ── API info ─────────────────────────────────────────────────────────────────
+
+app.get(api, (_req, res) => {
+  res.json({
+    service: 'SendBloc API',
+    version: '1.0.0',
+    endpoints: {
+      auth: ['POST /auth/challenge', 'POST /auth/verify', 'POST /auth/refresh', 'POST /auth/logout', 'POST /auth/logout-all'],
+      users: ['GET /users/me', 'PATCH /users/me', 'DELETE /users/me', 'GET /users/search', 'GET /users/:wallet', 'POST /users/me/rotate-address', 'GET /users/me/address-history'],
+      contacts: ['GET /contacts', 'POST /contacts', 'PATCH /contacts/:id', 'POST /contacts/:id/block', 'POST /contacts/:id/mute', 'DELETE /contacts/:id'],
+      messages: ['GET /messages/conversations', 'GET /messages/unread/count', 'GET /messages/:convId', 'POST /messages/send', 'POST /messages/:id/read', 'POST /messages/:id/reaction', 'DELETE /messages/:id', 'DELETE /messages/conversation/:id'],
+      groups: ['GET /groups', 'POST /groups', 'GET /groups/:id', 'PATCH /groups/:id', 'POST /groups/:id/members', 'DELETE /groups/:id/members/:uid', 'POST /groups/:id/leave', 'DELETE /groups/:id'],
+      settings: ['GET /settings', 'PUT /settings'],
+      notifications: ['GET /notifications', 'POST /notifications/:id/read', 'POST /notifications/read-all'],
+      keys: ['POST /keys/exchange', 'GET /keys/pending', 'POST /keys/accept/:id'],
+      networks: ['GET /networks', 'GET /networks/status'],
+    },
+    websocket: {
+      connect: 'io("ws://localhost:3001", { auth: { token: "<jwt>" } })',
+      events: {
+        client: ['typing:start', 'typing:stop', 'message:read', 'group:join', 'group:leave', 'presence:check', 'call:offer', 'call:answer', 'call:ice-candidate', 'call:end'],
+        server: ['message:new', 'message:read', 'message:reaction', 'message:deleted', 'typing:start', 'typing:stop', 'presence:online', 'presence:offline', 'presence:status', 'group:created', 'group:member_added', 'key:exchange_request', 'key:exchange_accepted'],
+      },
+    },
+  });
 });
 
 // ── Error handling ──────────────────────────────────────────────────────────

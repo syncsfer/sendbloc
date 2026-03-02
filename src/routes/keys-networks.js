@@ -71,11 +71,9 @@ router.get('/networks', (_req, res) => {
 
 // GET /networks/status — relay status (no auth)
 router.get('/networks/status', (_req, res) => {
-  res.json({
-    status: 'operational',
-    networks: SUPPORTED_NETWORKS.map((n) => ({ ...n, relay: 'online' })),
-    timestamp: new Date().toISOString(),
-  });
+  res.json(
+    SUPPORTED_NETWORKS.map((n) => ({ ...n, relayActive: true, relay: 'online' }))
+  );
 });
 
 module.exports = router;
