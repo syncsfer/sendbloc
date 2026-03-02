@@ -1,0 +1,31 @@
+{
+  "name": "sendbloc-backend",
+  "version": "1.0.0",
+  "description": "Wallet-to-wallet encrypted messaging backend",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "seed": "node src/utils/seed.js",
+    "test": "jest --coverage"
+  },
+  "keywords": ["messaging", "wallet", "encrypted", "web3"],
+  "author": "SendBloc Protocol",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "better-sqlite3": "^11.7.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "ethers": "^6.13.4",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "socket.io": "^4.8.1",
+    "uuid": "^11.0.5"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "nodemon": "^3.1.9"
+  }
+}
