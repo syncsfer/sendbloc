@@ -87,7 +87,7 @@ app.use(errorHandler);
 // ── Start server ────────────────────────────────────────────────────────────
 
 server.listen(config.port, () => {
-  console.log(`SendBloc server running on port ${config.port} (${config.nodeEnv})`);
+  console.log(`SendBloc server running on port ${config.port} (${config.env})`);
 });
 
 module.exports = { app, server, io };

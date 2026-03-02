@@ -24,7 +24,7 @@ function verifySignature(message, signature, expectedWallet) {
 
 function signAccessToken(payload) {
   return jwt.sign(payload, config.jwt.secret, {
-    expiresIn: config.jwt.accessExpiry,
+    expiresIn: config.jwt.expiry,
   });
 }
 

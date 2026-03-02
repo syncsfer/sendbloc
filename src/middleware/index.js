@@ -88,7 +88,7 @@ function errorHandler(err, req, res, _next) {
   console.error(`[${new Date().toISOString()}] ${err.stack || err.message}`);
   const status = err.status || 500;
   res.status(status).json({
-    error: config.nodeEnv === 'production' ? 'Internal server error' : err.message,
+    error: config.env === 'production' ? 'Internal server error' : err.message,
   });
 }
 

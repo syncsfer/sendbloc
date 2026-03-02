@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const { keyExchanges } = require('../models');
 const { authenticate, requireBody } = require('../middleware');
+const config = require('../config');
 
 const router = Router();
 
@@ -56,23 +57,15 @@ router.post('/keys/accept/:id', authenticate, (req, res) => {
 
 // ── Networks ────────────────────────────────────────────────────────────────
 
-const SUPPORTED_NETWORKS = [
-  { id: 'ethereum', name: 'Ethereum', chainId: 1 },
-  { id: 'polygon', name: 'Polygon', chainId: 137 },
-  { id: 'arbitrum', name: 'Arbitrum', chainId: 42161 },
-  { id: 'optimism', name: 'Optimism', chainId: 10 },
-  { id: 'base', name: 'Base', chainId: 8453 },
-];
-
 // GET /networks — list supported networks (no auth)
 router.get('/networks', (_req, res) => {
-  res.json(SUPPORTED_NETWORKS);
+  res.json(config.networks);
 });
 
 // GET /networks/status — relay status (no auth)
 router.get('/networks/status', (_req, res) => {
   res.json(
-    SUPPORTED_NETWORKS.map((n) => ({ ...n, relayActive: true, relay: 'online' }))
+    config.networks.map((n) => ({ ...n, relayActive: true, relay: 'online' }))
   );
 });
 
