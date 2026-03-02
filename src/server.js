@@ -14,7 +14,7 @@ const messageRoutes = require('./routes/messages');
 const groupRoutes = require('./routes/groups');
 const settingsRoutes = require('./routes/settings');
 const notificationRoutes = require('./routes/notifications');
-const keysNetworksRoutes = require('./routes/keys-networks');
+const { keysRouter, networksRouter } = require('./routes/keys-networks');
 
 const app = express();
 const server = http.createServer(app);
@@ -44,8 +44,8 @@ app.use(`${api}/groups`, groupRoutes);
 app.use(`${api}/settings`, settingsRoutes);
 app.use(`${api}/notifications`, notificationRoutes);
 
-// keys-networks mounts both /keys/* and /networks/* at the root api level
-app.use(api, keysNetworksRoutes);
+app.use(`${api}/keys`, keysRouter);
+app.use(`${api}/networks`, networksRouter);
 
 // ── Health check ────────────────────────────────────────────────────────────
 
