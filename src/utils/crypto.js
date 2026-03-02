@@ -35,7 +35,11 @@ function signRefreshToken(payload) {
 }
 
 function verifyToken(token) {
-  return jwt.verify(token, config.jwt.secret);
+  try {
+    return jwt.verify(token, config.jwt.secret);
+  } catch {
+    return null;
+  }
 }
 
 function hashToken(token) {

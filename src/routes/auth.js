@@ -59,8 +59,8 @@ router.post('/verify', authLimiter, requireBody('wallet', 'signature', 'message'
   }
 
   // Issue tokens
-  const accessToken = signAccessToken({ userId: user.id, wallet: user.wallet });
-  const refreshToken = signRefreshToken({ userId: user.id, wallet: user.wallet });
+  const accessToken = signAccessToken({ sub: user.wallet });
+  const refreshToken = signRefreshToken({ sub: user.wallet });
 
   // Store hashed tokens
   const decoded = verifyToken(refreshToken);
@@ -85,42 +85,48 @@ router.post('/verify', authLimiter, requireBody('wallet', 'signature', 'message'
 // POST /auth/refresh — refresh access token
 router.post('/refresh', requireBody('refreshToken'), (req, res) => {
   const { refreshToken } = req.body;
-  try {
-    const payload = verifyToken(refreshToken);
-    const refreshHash = hashToken(refreshToken);
-    const session = sessions.findByRefreshHash.get(refreshHash);
-    if (!session) {
-      return res.status(401).json({ error: 'Invalid refresh token' });
-    }
-
-    // Revoke old session
-    sessions.deleteByTokenHash.run(session.token_hash);
-
-    // Issue new tokens
-    const newAccess = signAccessToken({ userId: payload.userId, wallet: payload.wallet });
-    const newRefresh = signRefreshToken({ userId: payload.userId, wallet: payload.wallet });
-
-    const decoded = verifyToken(newRefresh);
-    const expiresAt = new Date(decoded.exp * 1000).toISOString();
-
-    sessions.create.run(
-      payload.userId,
-      hashToken(newAccess),
-      hashToken(newRefresh),
-      req.ip,
-      req.get('user-agent') || '',
-      expiresAt
-    );
-
-    res.json({ accessToken: newAccess, refreshToken: newRefresh });
-  } catch {
+  const payload = verifyToken(refreshToken);
+  if (!payload) {
     return res.status(401).json({ error: 'Invalid or expired refresh token' });
   }
+
+  const refreshHash = hashToken(refreshToken);
+  const session = sessions.findByRefreshHash.get(refreshHash);
+  if (!session) {
+    return res.status(401).json({ error: 'Invalid refresh token' });
+  }
+
+  // Revoke old session
+  sessions.deleteByTokenHash.run(session.token_hash);
+
+  // Look up user for session creation
+  const user = users.findByWallet.get(payload.sub);
+  if (!user) {
+    return res.status(401).json({ error: 'User not found' });
+  }
+
+  // Issue new tokens
+  const newAccess = signAccessToken({ sub: payload.sub });
+  const newRefresh = signRefreshToken({ sub: payload.sub });
+
+  const decoded = verifyToken(newRefresh);
+  const expiresAt = new Date(decoded.exp * 1000).toISOString();
+
+  sessions.create.run(
+    user.id,
+    hashToken(newAccess),
+    hashToken(newRefresh),
+    req.ip,
+    req.get('user-agent') || '',
+    expiresAt
+  );
+
+  res.json({ accessToken: newAccess, refreshToken: newRefresh });
 });
 
 // POST /auth/logout — revoke current session
 router.post('/logout', authenticate, (req, res) => {
-  sessions.deleteByTokenHash.run(req.tokenHash);
+  sessions.deleteByTokenHash.run(req.session.token_hash);
   res.json({ message: 'Logged out' });
 });
 

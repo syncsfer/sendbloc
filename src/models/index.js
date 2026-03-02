@@ -205,6 +205,21 @@ const settings = {
   `),
 };
 
+// ── Capitalized wrappers (function-style API for middleware) ─────────────────
+
+const Sessions = {
+  findByTokenHash(hash) { return sessions.findByTokenHash.get(hash); },
+  findByRefreshHash(hash) { return sessions.findByRefreshHash.get(hash); },
+  create(...args) { return sessions.create.run(...args); },
+  deleteByTokenHash(hash) { return sessions.deleteByTokenHash.run(hash); },
+  deleteByUserId(uid) { return sessions.deleteByUserId.run(uid); },
+};
+
+const Users = {
+  findByWallet(wallet) { return users.findByWallet.get(wallet); },
+  findById(id) { return users.findById.get(id); },
+};
+
 module.exports = {
   db,
   users,
@@ -217,4 +232,6 @@ module.exports = {
   addressHistory,
   notifications,
   settings,
+  Sessions,
+  Users,
 };

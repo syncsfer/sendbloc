@@ -3,7 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const config = require('./config');
-const { globalLimiter, errorHandler, notFound } = require('./middleware');
+const { globalLimiter, errorHandler, requestLogger } = require('./middleware');
 const { initSocket } = require('./services/socket');
 
 // Routes
@@ -29,6 +29,7 @@ app.set('io', io);
 app.use(helmet());
 app.use(cors({ origin: config.cors.origins, credentials: true }));
 app.use(express.json({ limit: '1mb' }));
+app.use(requestLogger);
 app.use(globalLimiter);
 
 // ── API routes ──────────────────────────────────────────────────────────────
@@ -81,7 +82,7 @@ app.get(api, (_req, res) => {
 
 // ── Error handling ──────────────────────────────────────────────────────────
 
-app.use(notFound);
+app.use((_req, res) => { res.status(404).json({ error: 'Not found' }); });
 app.use(errorHandler);
 
 // ── Start server ────────────────────────────────────────────────────────────

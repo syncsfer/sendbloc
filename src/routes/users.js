@@ -1,7 +1,7 @@
 const { Router } = require('express');
 const crypto = require('crypto');
 const { users, addressHistory, sessions, settings } = require('../models');
-const { authenticate, validateWallet } = require('../middleware');
+const { authenticate, requireWallet } = require('../middleware');
 
 const router = Router();
 
@@ -43,7 +43,7 @@ router.get('/search', authenticate, (req, res) => {
 });
 
 // GET /users/:wallet — public profile
-router.get('/:wallet', authenticate, validateWallet, (req, res) => {
+router.get('/:wallet', authenticate, requireWallet, (req, res) => {
   const profile = users.getPublicProfile.get(req.params.wallet.toLowerCase());
   if (!profile) {
     return res.status(404).json({ error: 'User not found' });
