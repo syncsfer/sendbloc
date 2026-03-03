@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#5B9BF5"/>
+      <stop offset="100%" stop-color="#2D6BE0"/>
+    </linearGradient>
+  </defs>
+  <!-- Background -->
+  <rect width="120" height="120" rx="26" fill="url(#bg)"/>
+  <!-- B letter - left vertical bar -->
+  <rect x="30" y="26" width="11" height="68" rx="2" fill="white"/>
+  <!-- B top horizontal -->
+  <rect x="30" y="26" width="34" height="11" rx="2" fill="white"/>
+  <!-- B middle horizontal -->
+  <rect x="30" y="54" width="34" height="11" rx="2" fill="white"/>
+  <!-- B bottom horizontal -->
+  <rect x="30" y="83" width="34" height="11" rx="2" fill="white"/>
+  <!-- B top-right bump -->
+  <rect x="60" y="26" width="11" height="11" rx="2" fill="white" opacity="0.9"/>
+  <rect x="60" y="37" width="11" height="11" rx="2" fill="white" opacity="0.55"/>
+  <!-- B middle-right bump -->
+  <rect x="60" y="54" width="11" height="11" rx="2" fill="white" opacity="0.9"/>
+  <rect x="60" y="65" width="11" height="11" rx="2" fill="white" opacity="0.55"/>
+  <!-- B bottom-right bump -->
+  <rect x="60" y="83" width="11" height="11" rx="2" fill="white" opacity="0.7"/>
+  <!-- Send arrow -->
+  <polygon points="78,28 92,40 78,52" fill="white" opacity="0.5"/>
+  <rect x="68" y="36" width="14" height="8" rx="2" fill="white" opacity="0.35"/>
+</svg>

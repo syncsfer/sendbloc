@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Terms of Service | SendBloc</title>
+<link rel="icon" type="image/png" href="sendbloc-icon.png">
+<link rel="apple-touch-icon" href="sendbloc-icon.png">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#f5f6fc;--bg2:#ffffff;--surface:#ffffff;
+  --text:#222238;--text2:#7d7d9c;--text3:#a4a4b8;--text4:#c4c4d4;
+  --accent:#00d68f;--accent-hover:#00c080;--accent-dark:#00a86e;
+  --accent-glow:rgba(0,214,143,.12);--accent-glow2:rgba(0,214,143,.25);
+  --border:rgba(34,34,56,.06);--border2:rgba(34,34,56,.1);
+  --radius:24px;--radius-md:16px;--radius-sm:12px;--radius-xs:8px;
+  --shadow-card:0 4px 32px rgba(34,34,56,.06);
+  --font:'Outfit',system-ui,-apple-system,sans-serif;
+  --mono:'Fira Code',monospace;
+  --transition:all .25s cubic-bezier(.4,0,.2,1);
+}
+html{scroll-behavior:smooth}
+body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;min-height:100vh}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+::selection{background:var(--accent);color:#fff}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(0,0,0,.08);border-radius:6px}
+/* NAV */
+nav{position:fixed;top:0;left:0;right:0;z-index:100;height:72px;padding:0 16px;display:flex;align-items:center;background:rgba(245,246,252,.8);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+.nav-brand{display:flex;align-items:center;gap:10px;padding:8px 12px 8px 8px;text-decoration:none;color:inherit}
+.nav-logo{width:32px;height:32px;border-radius:8px;box-shadow:0 2px 8px var(--accent-glow2)}
+.nav-logo-text{font-weight:700;font-size:17px;letter-spacing:-.3px}
+/* CONTENT */
+.page-wrap{max-width:780px;margin:0 auto;padding:100px 24px 60px}
+.page-header{margin-bottom:40px}
+.page-title{font-size:clamp(32px,5vw,48px);font-weight:800;letter-spacing:-1.5px;line-height:1.1;margin-bottom:12px}
+.page-meta{font-size:14px;color:var(--text2);display:flex;flex-wrap:wrap;gap:16px}
+.page-meta span{display:flex;align-items:center;gap:6px}
+/* CONTENT CARD */
+.content-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:40px;box-shadow:var(--shadow-card)}
+.content-card h2{font-size:20px;font-weight:700;letter-spacing:-.3px;margin:32px 0 12px;color:var(--text)}
+.content-card h2:first-child{margin-top:0}
+.content-card p{font-size:15px;line-height:1.7;color:var(--text2);margin-bottom:12px}
+.content-card ul,.content-card ol{margin:8px 0 16px 20px;font-size:15px;line-height:1.7;color:var(--text2)}
+.content-card li{margin-bottom:6px}
+.content-card strong{color:var(--text);font-weight:600}
+.content-card a{color:var(--accent);font-weight:500}
+.content-card a:hover{text-decoration:underline}
+/* FOOTER */
+footer{max-width:780px;margin:0 auto;padding:32px 24px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px}
+.footer-left{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text3)}
+.footer-links{display:flex;gap:20px}
+.footer-links a{font-size:13px;color:var(--text3);transition:color .2s;font-weight:500;text-decoration:none}
+.footer-links a:hover{color:var(--accent)}
+@media(max-width:768px){
+  .page-wrap{padding:88px 16px 40px}
+  .content-card{padding:24px;border-radius:var(--radius-md)}
+  footer{flex-direction:column;align-items:flex-start}
+}
+</style>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="nav-brand">
+    <img src="sendbloc-icon.png" alt="SendBloc" class="nav-logo" />
+    <span class="nav-logo-text">SendBloc</span>
+  </a>
+</nav>
+<div class="page-wrap">
+  <div class="page-header">
+    <h1 class="page-title">Terms of Service</h1>
+    <div class="page-meta">
+      <span>Version 1.0</span>
+      <span>Effective: February 24, 2026</span>
+    </div>
+  </div>
+  <div class="content-card">
+
+    <h2>1. Acceptance of Terms</h2>
+    <p>By accessing or using SendBloc ("the App," "we," "us," or "our"), you ("User," "you," or "your") agree to be bound by these Terms of Service ("Terms"). If you do not agree to these Terms, do not use the App.</p>
+    <p>SendBloc is a decentralized, wallet-native encrypted messaging application. These Terms govern your use of the SendBloc application, including all features, tools, and services provided through the platform.</p>
+
+    <h2>2. Description of Service</h2>
+    <p>SendBloc provides:</p>
+    <ul>
+      <li>Wallet-to-wallet encrypted messaging</li>
+      <li>Decentralized communication infrastructure</li>
+      <li>End-to-end encryption (AES-256-GCM)</li>
+      <li>Group messaging capabilities</li>
+      <li>QR code-based identity sharing</li>
+      <li>Multi-chain wallet support</li>
+      <li>Optional premium features via Pro Pass NFT</li>
+    </ul>
+
+    <h2>3. Wallet-Based Accounts</h2>
+    <p><strong>3.1 No Traditional Accounts:</strong> SendBloc does not require email addresses, phone numbers, or passwords. Your blockchain wallet address serves as your identity.</p>
+    <p><strong>3.2 Wallet Responsibility:</strong> You are solely responsible for maintaining the security of your wallet, private keys, and seed phrases. SendBloc cannot recover lost wallets or private keys.</p>
+    <p><strong>3.3 Authentication:</strong> Access to SendBloc is authenticated through wallet signatures. You are responsible for all activity conducted through your connected wallet.</p>
+
+    <h2>4. Acceptable Use</h2>
+    <p>You agree NOT to use SendBloc to:</p>
+    <ul>
+      <li>Transmit illegal content or facilitate illegal activities</li>
+      <li>Send spam, phishing attempts, or malicious links</li>
+      <li>Harass, threaten, or abuse other users</li>
+      <li>Distribute malware, viruses, or harmful code</li>
+      <li>Attempt to decrypt or intercept other users' messages</li>
+      <li>Exploit vulnerabilities in the protocol without responsible disclosure</li>
+      <li>Impersonate other users or wallet addresses</li>
+      <li>Use the service for money laundering or terrorist financing</li>
+      <li>Violate any applicable local, state, national, or international law</li>
+    </ul>
+
+    <h2>5. Pro Pass NFT &amp; Premium Features</h2>
+    <p><strong>5.1 Pro Pass:</strong> SendBloc offers a Pro Pass NFT that unlocks premium features including increased file sharing limits, priority message routing, custom themes, and advanced group management.</p>
+    <p><strong>5.2 NFT Ownership:</strong> The Pro Pass is a blockchain-based NFT. Ownership is determined by on-chain records. SendBloc is not responsible for NFT transfers, sales, or losses on secondary markets.</p>
+    <p><strong>5.3 Feature Availability:</strong> Premium features are subject to change. We reserve the right to modify, add, or remove premium features with reasonable notice to Pro Pass holders.</p>
+
+    <h2>6. Intellectual Property</h2>
+    <p><strong>6.1 SendBloc IP:</strong> The SendBloc name, logo, brand elements, and proprietary technology are owned by SendBloc. You may not use our intellectual property without written permission.</p>
+    <p><strong>6.2 User Content:</strong> You retain ownership of all messages and content you transmit through SendBloc. Due to end-to-end encryption, we cannot access your content.</p>
+    <p><strong>6.3 Open Source:</strong> Portions of SendBloc's protocol may be open source and governed by their respective licenses.</p>
+
+    <h2>7. Disclaimers</h2>
+    <p><strong>7.1 AS-IS Service:</strong> SendBloc is provided "AS IS" and "AS AVAILABLE" without warranties of any kind, whether express or implied.</p>
+    <p><strong>7.2 No Guarantee of Availability:</strong> We do not guarantee uninterrupted, secure, or error-free operation of the service. As a decentralized protocol, network conditions may affect performance.</p>
+    <p><strong>7.3 Blockchain Risks:</strong> You acknowledge the inherent risks of blockchain technology, including but not limited to: network congestion, smart contract vulnerabilities, regulatory changes, and wallet security risks.</p>
+
+    <h2>8. Limitation of Liability</h2>
+    <p>To the maximum extent permitted by law, SendBloc and its team, contributors, and affiliates shall not be liable for:</p>
+    <ul>
+      <li>Loss of funds, tokens, or NFTs</li>
+      <li>Lost or undelivered messages</li>
+      <li>Unauthorized access to your wallet</li>
+      <li>Any indirect, incidental, special, consequential, or punitive damages</li>
+      <li>Damages arising from your use of or inability to use the service</li>
+      <li>Actions of third-party services or protocols integrated with SendBloc</li>
+    </ul>
+
+    <h2>9. Indemnification</h2>
+    <p>You agree to indemnify and hold harmless SendBloc, its developers, contributors, and affiliates from any claims, damages, losses, or expenses (including legal fees) arising from:</p>
+    <ul>
+      <li>Your use of the App</li>
+      <li>Your violation of these Terms</li>
+      <li>Your violation of any third-party rights</li>
+      <li>Content you transmit through the service</li>
+    </ul>
+
+    <h2>10. Termination</h2>
+    <p><strong>10.1 User Termination:</strong> You may stop using SendBloc at any time by disconnecting your wallet.</p>
+    <p><strong>10.2 Service Termination:</strong> We reserve the right to restrict or terminate access to the App for users who violate these Terms or pose a threat to the network's integrity.</p>
+    <p><strong>10.3 Effect of Termination:</strong> Upon termination, your right to use the App ceases. Given the decentralized nature of the protocol, some data may persist on the network.</p>
+
+    <h2>11. Governing Law &amp; Dispute Resolution</h2>
+    <p><strong>11.1 Governing Law:</strong> These Terms are governed by applicable law in the jurisdiction where SendBloc operates.</p>
+    <p><strong>11.2 Dispute Resolution:</strong> Any disputes shall first be attempted to be resolved through good-faith negotiation. If unresolved, disputes shall be submitted to binding arbitration.</p>
+    <p><strong>11.3 Class Action Waiver:</strong> You agree to resolve disputes individually and waive any right to participate in class action lawsuits or class-wide arbitration.</p>
+
+    <h2>12. Severability</h2>
+    <p>If any provision of these Terms is found to be unenforceable or invalid, that provision shall be limited or eliminated to the minimum extent necessary, and the remaining provisions shall remain in full force and effect.</p>
+
+    <h2>13. Changes to Terms</h2>
+    <p>We reserve the right to modify these Terms at any time. Material changes will be communicated through the App or our official channels. Continued use of SendBloc after changes constitutes acceptance of the updated Terms.</p>
+
+    <h2>14. Contact</h2>
+    <p>For questions about these Terms of Service:</p>
+    <ul>
+      <li>Email: <a href="mailto:legal@sendbloc.com">legal@sendbloc.com</a></li>
+      <li>Support: <a href="mailto:support@sendbloc.com">support@sendbloc.com</a></li>
+      <li>Discord: <a href="https://discord.gg/sendbloc">discord.gg/sendbloc</a></li>
+    </ul>
+
+  </div>
+</div>
+<footer>
+  <div class="footer-left">
+    <img src="sendbloc-icon.png" alt="SendBloc" style="width:24px;height:24px;border-radius:6px" />
+    <span>&copy; 2026 SendBloc Protocol</span>
+  </div>
+  <div class="footer-links">
+    <a href="index.html">Home</a>
+    <a href="#">Privacy</a>
+    <a href="terms.html">Terms</a>
+  </div>
+</footer>
+</body>
+</html>
