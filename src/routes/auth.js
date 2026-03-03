@@ -155,4 +155,49 @@ router.post("/logout-all", authenticate, asyncHandler(async (req, res) => {
   res.json({ success: true });
 }));
 
+/**
+ * POST /auth/dev-login
+ * Dev-only: authenticate without wallet signature (for frontend testing)
+ */
+if (process.env.NODE_ENV !== "production") {
+  router.post("/dev-login", authLimiter, requireBody("wallet"), asyncHandler(async (req, res) => {
+    const { wallet, publicKey, alias } = req.body;
+    if (!/^0x[0-9a-fA-F]{40}$/.test(wallet)) {
+      return res.status(400).json({ error: "Invalid wallet address" });
+    }
+
+    const normalizedWallet = wallet.toLowerCase();
+    let user = Users.findById(normalizedWallet);
+    if (!user) {
+      Users.create(normalizedWallet, publicKey || `pk_dev_${Date.now()}`, alias || null);
+      user = Users.findById(normalizedWallet);
+    }
+
+    Users.updateOnlineStatus(normalizedWallet, true);
+
+    const tokens = issueTokens(normalizedWallet);
+    const sessionId = generateId("sess");
+
+    Sessions.create(
+      sessionId, normalizedWallet,
+      tokens.accessTokenHash, tokens.refreshTokenHash,
+      tokens.expiresAt,
+      req.headers["user-agent"], req.ip
+    );
+
+    res.json({
+      user: {
+        wallet: user.id,
+        alias: user.alias,
+        publicKey: user.public_key,
+        network: user.network,
+        createdAt: user.created_at,
+      },
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      expiresAt: tokens.expiresAt,
+    });
+  }));
+}
+
 module.exports = router;

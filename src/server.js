@@ -5,6 +5,7 @@
 
 require("dotenv").config();
 
+const path = require("path");
 const http = require("http");
 const express = require("express");
 const cors = require("cors");
@@ -77,6 +78,12 @@ app.use(express.json({ limit: "5mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(globalLimiter);
 app.use(requestLogger);
+
+// Serve frontend static files
+app.use(express.static(path.join(__dirname, ".."), {
+  index: "index.html",
+  extensions: ["html"],
+}));
 
 /* ─────────────────────────────────────────
    ROUTES
