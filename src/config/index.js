@@ -21,9 +21,11 @@ const config = {
   },
 
   cors: {
-    origins: (process.env.CORS_ORIGIN || "http://localhost:3000,http://localhost:3001,http://localhost:5173")
-      .split(",")
-      .map((s) => s.trim()),
+    origins: process.env.NODE_ENV === "production"
+      ? true // Allow all origins in production (app serves its own frontend)
+      : (process.env.CORS_ORIGIN || "http://localhost:3000,http://localhost:3001,http://localhost:5173")
+          .split(",")
+          .map((s) => s.trim()),
   },
 
   rateLimit: {
